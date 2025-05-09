@@ -110,3 +110,6 @@ venv.bak/
 
 # OS generated files
 .DS_Store
+
+# Receptive fields generated data
+/receptive_fields/
