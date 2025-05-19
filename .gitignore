@@ -111,5 +111,27 @@ venv.bak/
 # OS generated files
 .DS_Store
 
-# Receptive fields generated data
+# Experiment generated data
 /receptive_fields/
+/report_images/
+/python_scripts/
+
+# Temporary files
+*.npy
+temp_*
+
+# Report and analysis files
+*_receptive_field.png
+*_sta.npy
+neuron_*_*.png
+fnn_*.png
+*_responses.png
+*_correlations.png
+*_dynamics.png
+*_patterns.png
+*_pca.png
+*_preferences.png
+
+# Experimental summaries
+反向关联*.md
+FNN_*.md
