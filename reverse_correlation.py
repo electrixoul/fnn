@@ -207,11 +207,27 @@ def main():
     n_total_neurons = len(ids)
     print(f"Total neurons in the model: {n_total_neurons}")
 
-    # Randomly select 1000 neurons for analysis
-    np.random.seed(42)  # For reproducibility
-    n_neurons = 1000
-    selected_neurons = np.random.choice(n_total_neurons, size=n_neurons, replace=False)
-    print(f"Randomly selected {n_neurons} neurons for analysis")
+    # Select the most active neurons for analysis
+    print("Running a test to identify the most active neurons...")
+    # Generate test stimuli and measure neuron activations
+    n_test_frames = 50
+    test_stimuli = generate_white_noise(n_frames=n_test_frames, contrast=80)
+    
+    # Get model responses for all neurons on the test stimuli
+    test_responses = model.predict(stimuli=test_stimuli)
+    
+    # Calculate activation strength (mean response) for each neuron
+    activation_strength = np.mean(test_responses, axis=0)
+    
+    # Sort neurons by activation strength
+    sorted_indices = np.argsort(-activation_strength)  # Descending order
+    
+    # Select top 20 most active neurons
+    n_neurons = 20
+    selected_neurons = sorted_indices[:n_neurons]
+    
+    print(f"Selected the {n_neurons} most active neurons for analysis")
+    print(f"Activation strength range: {activation_strength[selected_neurons[-1]]:.4f} to {activation_strength[selected_neurons[0]]:.4f}")
 
     # Check for existing results and load them if available
     all_results = {}
@@ -241,14 +257,14 @@ def main():
     if not neurons_to_process:
         print("All neurons already processed, skipping to visualization")
     else:
-        # Adjust parameters for better progress tracking
-        n_frames = 200     # Reduced for faster computation
+        # Adjust parameters for better receptive field quality (since we're only processing 20 neurons)
+        n_frames = 300     # More frames for cleaner receptive fields
         batch_size = 50    # Smaller batches for better monitoring
-        contrast = 50      # Standard deviation of the white noise
-        n_lags = 3         # Number of temporal lags for STA
+        contrast = 80      # Higher contrast for better signal-to-noise ratio
+        n_lags = 1         # Single lag for simplicity
 
-        # Use smaller batches for better progress visualization
-        neurons_per_batch = 10  # Process 10 neurons at a time for clear progress
+        # Process all neurons at once since we only have a few
+        neurons_per_batch = min(20, len(neurons_to_process))  # Process all neurons at once for faster computation
         neuron_batches = [neurons_to_process[i:i+neurons_per_batch]
                          for i in range(0, len(neurons_to_process), neurons_per_batch)]
 
@@ -324,54 +340,55 @@ def main():
 
     print(f"Generating visualizations for {len(visualization_needed)} neurons...")
 
-    for i, neuron_idx in enumerate(tqdm(visualization_needed, desc=\"Saving visualizations\")):
+    for i, neuron_idx in enumerate(tqdm(visualization_needed, desc="Saving visualizations")):
         # Save the raw STA data if not already saved
-        sta_file = f\"{output_dir}/neuron_{neuron_idx}_sta.npy\"
+        sta_file = f"{output_dir}/neuron_{neuron_idx}_sta.npy"
         if not os.path.exists(sta_file):
             np.save(sta_file, all_results[neuron_idx])
 
         # Generate and save visualization
-        output_file = f\"{output_dir}/neuron_{neuron_idx}_receptive_field.png\"
+        output_file = f"{output_dir}/neuron_{neuron_idx}_receptive_field.png"
         visualize_receptive_field(all_results[neuron_idx], neuron_idx, file_path=output_file)
 
         # Print progress periodically
         if (i+1) % 50 == 0:
-            print(f\"Processed {i+1}/{len(visualization_needed)} visualizations\")
+            print(f"Processed {i+1}/{len(visualization_needed)} visualizations")
 
     viz_time = time.time() - viz_start_time
-    print(f\"Visualization generation completed in {viz_time:.2f} seconds\")
+    print(f"Visualization generation completed in {viz_time:.2f} seconds")
 
-    # Generate a summary visualization of a sample of receptive fields if not already created
-    summary_file = f\"{output_dir}/sample_receptive_fields.png\"
+    # Generate a summary visualization of receptive fields in order of activation strength
+    summary_file = f"{output_dir}/sample_receptive_fields.png"
     if not os.path.exists(summary_file):
-        print(\"Generating summary visualization...\")
+        print("Generating summary visualization...")
         plt.figure(figsize=(15, 15))
 
-        sample_size = min(25, len(selected_neurons))  # Show up to 25 neurons in the summary
-        sample_indices = np.random.choice(list(all_results.keys()), size=sample_size, replace=False)
-
-        for i, idx in enumerate(sample_indices):
+        # Use all selected neurons (which are already sorted by activation strength)
+        sample_size = min(20, len(selected_neurons))  # Up to 20 neurons
+        
+        # Display neurons in order of activation strength (highest to lowest)
+        for i, idx in enumerate(selected_neurons[:sample_size]):
             plt.subplot(5, 5, i+1)
             sta = all_results[idx]
             if sta.ndim == 3:
                 sta = sta[0]
             sta_normalized = (sta - np.mean(sta)) / np.std(sta)
             plt.imshow(sta_normalized, cmap='coolwarm')
-            plt.title(f\"Neuron {idx}\")
+            plt.title(f"Neuron {idx}\nStrength: {activation_strength[idx]:.4f}")
             plt.axis('off')
 
         plt.tight_layout()
         plt.savefig(summary_file)
-        print(f\"Summary visualization saved to {summary_file}\")
+        print(f"Summary visualization saved to {summary_file}")
     else:
-        print(f\"Summary visualization already exists at {summary_file}\")
+        print(f"Summary visualization already exists at {summary_file}")
 
     # Calculate total execution time
     total_time = time.time() - total_start_time
-    print(f\"Total execution time: {total_time:.2f} seconds\")
+    print(f"Total execution time: {total_time:.2f} seconds")
 
-    print(f\"All results saved to '{output_dir}' directory\")
-    print(\"Receptive field analysis completed successfully!\")
+    print(f"All results saved to '{output_dir}' directory")
+    print("Receptive field analysis completed successfully!")
 
-if __name__ == \"__main__\":
+if __name__ == "__main__":
     main()
